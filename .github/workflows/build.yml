@@ -3,30 +3,43 @@ name: CI
 on:
   push:
     branches:
-      - master
-      - dev
+      - main
   pull_request:
     branches:
-      - master
+      - main
 
 jobs:
   build:
-    if: startsWith(github.event.head_commit.message, '[CI skip]') == false
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4.6.0
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4.6.0
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: 21
-          cache: 'maven'
-      - name: Build with Maven
-        run: mvn package --file pom.xml
-      - name: Get build artifact ready
-        run: mkdir staging && cp target/*.jar staging
-      - name: Upload a Build Artifact
-        uses: actions/upload-artifact@v4.5.0
+          java-version: '21'
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
         with:
-          name: Dev Build
-          path: staging
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+            
+      - name: Build with Maven
+        run: mvn --batch-mode clean install
+
+      - name: Find built JAR
+        id: find-jar
+        run: |
+          JAR_PATH=$(find target -name '*.jar' | grep -v 'original' | head -n 1)
+          echo "JAR_PATH=$JAR_PATH" >> $GITHUB_ENV
+      - name: Upload JAR file
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlayerChat Artifacts
+          path: ${{ env.JAR_PATH }}
